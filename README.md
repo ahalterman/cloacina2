@@ -17,7 +17,9 @@ Check what's in each queue and what's been acknowledged from each:
 sudo rabbitmqctl list_queues name messages_ready messages_unacknowledged
 ```
 
-`worker_unlimited.py` does not have any way of breaking out once the limit is
-reached, but it does have functionality for multiple workers on the same queue.
-`worker_limited.py` can stop after a set number of messages but can only handle
-one worker at once.
+`worker.py` will pull sources from the queue, download them, format them, and
+load them into MongoDB. A parameter set in the code limits the total number of
+articles the worker will download before shutting off. Use `bash
+start_workers.sh` to start multiple workers and run them in the background. For
+extra speed, multiple workers can use the same username and password, just make
+sure to adjust the worker source limit accordingly.
