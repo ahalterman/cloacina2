@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 import pika
 import time
 import re
@@ -17,7 +18,7 @@ import requests
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 
-ARTICLE_LIMIT = 500
+ARTICLE_LIMIT = 50000
 
 # Read config file
 #ln_user, ln_password, db_collection, whitelist_file, pool_size, log_dir, log_level, auth_db, auth_user, auth_pass, db_host = utilities.parse_config()
@@ -34,7 +35,7 @@ logger.addHandler(handler)
 logger.info("Writing logs to {0}".format("cloacina_run.log"))
 
 # Set up connection to Mongo
-db_collection = "test2"
+db_collection = "ln_arabic" #"test2"
 connection = MongoClient()
 db = connection.lexisnexis
 collection = db[db_collection]
@@ -89,25 +90,20 @@ if not authToken:
 
 print authToken
 
-import requests
-import re
-import json
-
 with open('source_name_id.json') as source_file:    
     source_dict = json.load(source_file)
-
 
 # Run query to get list of hits
 def run_query(source_name, date, start_result, end_result, authToken):
     #searchterm = "a OR an OR the"
-    searchterm = "a AND NOT playoff! OR teammate! OR NFL OR halftime OR NBA OR quarterback OR goalie OR NHL OR postseason OR head coach OR N.F.L. OR N.B.A. OR field goal! OR playoff!"
+    searchterm = u"a AND NOT playoff! OR teammate! OR NFL OR halftime OR NBA OR quarterback OR goalie OR NHL OR postseason OR head coach OR N.F.L. OR N.B.A. OR field goal! OR playoff!"
     if re.search("Arabic", source_name):
         searchterm = u"أن OR من OR هذا OR أن OR يا"
-        print searchterm
+        #print searchterm
 
     source = source_dict[source_name]
 
-    req = """<SOAP-ENV:Envelope
+    req = u"""<SOAP-ENV:Envelope
        xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
        SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
         <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -137,7 +133,9 @@ def run_query(source_name, date, start_result, end_result, authToken):
       </Search>
     </soap:Body>
     </SOAP-ENV:Envelope>""".format(authToken = authToken, date = date, source = source, searchterm = searchterm, start_result = start_result, end_result = end_result)
-
+    
+    req = req.encode("utf-8")
+    
     headers = {"Host": "www.lexisnexis.com",
                 "Content-Type": "text/xml; charset=UTF-8",
                 "Content-Length": len(req),
@@ -262,7 +260,7 @@ def add_entry(collection, news_source, article_title, publication_date_raw, arti
 def download_wrapper(source, source_day_total, authToken = authToken):
     #try:
     output = download_day_source(source['source_name'], source['date'], source_day_total, authToken)
-    lang = 'english'
+    lang = 'arabic'
    
     mongo_error = []
     for result in output['stories']:
