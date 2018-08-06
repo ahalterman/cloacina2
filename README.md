@@ -1,5 +1,6 @@
 # cloacina2
-Download stories from the LexisNexis WSK API with rate limits
+
+Download stories from the LexisNexis WSK API (if you must) with rate limits
 
 ```
 pip install pika
@@ -23,3 +24,9 @@ articles the worker will download before shutting off. Use `bash
 start_workers.sh` to start multiple workers and run them in the background. For
 extra speed, multiple workers can use the same username and password, just make
 sure to adjust the worker source limit accordingly.
+
+## Note
+
+The customer service I experienced from LexisNexis was terrible: rude, slow,
+and technically uninformed. I'd strongly consider other providers if they're
+available.

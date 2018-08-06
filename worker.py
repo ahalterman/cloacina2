@@ -47,14 +47,10 @@ parser.add_argument("--password", help="Password for LexisNexis username")
 # we get source from Rabbit now
 #parser.add_argument("--source", help="sourcename;start_yyyy-mm-dd;end_yyyy-mm-dd")
 
-args = parser.parse_args()
-ln_user = args.user
-ln_password = args.password
-
 
 # Authentication
 def authenticate(username, password):
-    request = """
+    request = u"""
     <SOAP-ENV:Envelope
        xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
        SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
@@ -90,7 +86,7 @@ if not authToken:
 
 print authToken
 
-with open('source_name_id.json') as source_file:    
+with open('source_name_id.json') as source_file:
     source_dict = json.load(source_file)
 
 # Run query to get list of hits
@@ -133,29 +129,29 @@ def run_query(source_name, date, start_result, end_result, authToken):
       </Search>
     </soap:Body>
     </SOAP-ENV:Envelope>""".format(authToken = authToken, date = date, source = source, searchterm = searchterm, start_result = start_result, end_result = end_result)
-    
+
     req = req.encode("utf-8")
-    
+
     headers = {"Host": "www.lexisnexis.com",
                 "Content-Type": "text/xml; charset=UTF-8",
                 "Content-Length": len(req),
                 "Origin" : "http://www.lexisnexis.com",
                 "User-Agent" : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.132 Safari/537.36",
                 "SOAPAction": "Search"}
-
+    req = req.encode('utf-8')
     try:
-        t = requests.post(url = "http://www.lexisnexis.com/wsapi/v1/services/Search",
+        t = requests.post(url = u"http://www.lexisnexis.com/wsapi/v1/services/Search",
                          headers = headers,
                          data = req)
         return t
-    
+
     except Exception as e:
         print "Problem in `run_query` for {0} on {1}: {2}".format(source_name, date, e)
 
 
 
 # Get the total sources for a source-date
-def get_source_day_total(source_name, date, authToken = authToken):
+def get_source_day_total(source_name, date, authToken):
     try:
         t = run_query(source_name, date, 1, 10, authToken)
         if t.status_code == 500:
@@ -214,7 +210,7 @@ def extract_from_b64(encoded_doc):
             "article_title" : article_title,
             "article_body" : article_body,
             "doc_id" : doc_id}
-    
+
     return data
 
 # The guts of the download function
@@ -257,11 +253,12 @@ def add_entry(collection, news_source, article_title, publication_date_raw, arti
     return object_id
 
 # Download a source
-def download_wrapper(source, source_day_total, authToken = authToken):
+def download_wrapper(source, source_day_total, authToken):
     #try:
     output = download_day_source(source['source_name'], source['date'], source_day_total, authToken)
-    lang = 'arabic'
-   
+
+    lang = 'english'
+
     mongo_error = []
     for result in output['stories']:
         try:
@@ -276,16 +273,6 @@ def download_wrapper(source, source_day_total, authToken = authToken):
     #    logger.warning("Error downloading {0}: {1}".format(source, e))
 
 
-# Set up connection to queue.
-# The queue contains source-days left to download.
-credentials = pika.PlainCredentials('guest', 'guest')
-parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
-connection = pika.BlockingConnection(parameters)
-channel = connection.channel()
-channel.queue_declare(queue='cloacina_process2', durable=True)
-channel.confirm_delivery()
-
-
 # Handle the rate limit
 global doc_count
 doc_count = 0
@@ -297,7 +284,7 @@ def download(ch, method, properties, body):
     total = get_source_day_total(source["source_name"], source["date"])
     total = int(total)
     print total
-    download_wrapper(source, total)
+    download_wrapper(source, total, authToken)
     global doc_count
     doc_count += total
     print doc_count
@@ -306,8 +293,27 @@ def download(ch, method, properties, body):
         # use the incorrect nowait arg to kill it. Otherwise it marches on.
         ch.basic_cancel(consumer_tag = '', nowait = True)
 
-channel.basic_qos(prefetch_count=1)
-channel.basic_consume(download,
-                              queue='cloacina_process2')
 
-channel.start_consuming()
+if __name__ == "__main__":
+    args = parser.parse_args()
+    ln_user = args.user
+    ln_password = args.password
+    authToken = authenticate(ln_user, ln_password)
+    if not authToken:
+        # logger.error("No auth token generated")
+        print "No auth token generated"
+        #quit()
+    print authToken
+    # Set up connection to queue.
+    # The queue contains source-days left to download.
+    credentials = pika.PlainCredentials('guest', 'guest')
+    parameters = pika.ConnectionParameters('localhost', 5672, '/', credentials)
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.queue_declare(queue='cloacina_process2', durable=True)
+    channel.confirm_delivery()
+
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(download,
+                                  queue='cloacina_process2')
+    channel.start_consuming()
